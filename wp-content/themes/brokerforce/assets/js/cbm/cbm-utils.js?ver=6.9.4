@@ -1,0 +1,212 @@
+'use strict';
+
+/*
+Reference: How to use jQuery's $ function anywhere:
+
+(function( $ ) {
+
+})(jQuery);
+*/
+
+// Came with Joints WP, several fixes
+
+function joints_wp_fixes() {
+    ;(function ($) {
+        // Remove empty P tags created by WP inside of Accordion and Orbit
+        $('.accordion p:empty, .orbit p:empty').remove();
+
+        // Makes sure last grid item floats left
+        $('.archive-grid .columns').last().addClass('end');
+
+        // Adds Flex Video to YouTube and Vimeo Embeds
+        $('iframe[src*="youtube.com"], iframe[src*="vimeo.com"]').each(function () {
+            if ($(this).innerWidth() / $(this).innerHeight() > 1.5) {
+                $(this).wrap("<div class='widescreen flex-video'/>");
+            } else {
+                $(this).wrap("<div class='flex-video'/>");
+            }
+        });
+    })(jQuery);
+}
+
+/*
+
+Smooth Scrolling JS
+
+Automatically detects changes to the pages hash and scrolls the user to the corresponding element.  Checks on load if there is a hash, and attempts to find it.
+
+Element should be set up with the following attributes:
+<div data-scroll-name='UNIQUENAME'
+     data-scroll-speed='Jquery Speed'      optional, defaults to 'slow'
+     data-scroll-offset='-200'             offset in px you'd like the scroll to stop at.  Good for accomodating header bars.  Defaults to -50.
+     >
+
+Call the watcher to queue up the doer
+
+*/
+// Watcher
+function watchForSmoothScrolls() {
+    var _this = this;
+
+    jQuery('[data-scroll-to]').on('click', function (e) {
+        e.preventDefault();
+        var scrollToName = jQuery(_this).attr('data-scroll-to');
+        scrollTo(scrollToName);
+    });
+    jQuery(window).bind('hashchange', function () {
+        var newHash = location.hash.substring(1);
+        scrollTo(newHash);
+    });
+    var newHash = location.hash.substring(1);
+    scrollTo(newHash);
+}
+
+// Doer
+function scrollTo(anchor) {
+    $(window).on('load', function () {
+        setTimeout(function () {
+            var $elem = jQuery("[data-scroll-name='" + anchor + "']");
+            if ($elem.length == 0) {
+                console.warn('Attempted to auto-scroll to element with data-scroll-name [' + anchor + '], but could not find any elements with that name.');
+                return false;
+            }
+            var scrollSpeed = $elem.attr('data-scroll-speed');
+            if (!scrollSpeed) {
+                scrollSpeed = 'slow';
+            }
+            var scrollOffset = parseInt($elem.attr('data-scroll-offset'));
+            if (!scrollOffset) {
+                scrollOffset = -50;
+            }
+
+            console.log($elem.offset().top - scrollOffset, anchor, scrollSpeed, scrollOffset);
+            jQuery('html,body').animate({ scrollTop: $elem.offset().top + scrollOffset }, scrollSpeed);
+        }, 10);
+    });
+}
+
+/*
+
+Full size hero videos
+
+HTML (put directly in banner-block, parent is full size.  Have overflow hidden.)
+  <div id='hero-vid-holder'>
+      <iframe src="http://player.vimeo.com/video/<?= $hero_vid ?>?background=1&loop=1" width="100%" height="100%" frameborder="0" webkitAllowFullScreen mozallowfullscreen allowFullScreen></iframe>
+  </div>
+
+CSS
+#hero-vid-holder {
+  width: 100%;
+  height: 775px;
+  iframe {
+    width: 100%;
+    height: 100%;
+  }
+}
+*/
+
+// Watcher
+function watchForHeroVideos() {
+    jQuery(window).on('resize', heroVideoSizer).resize();
+}
+
+// Doer
+function heroVideoSizer() {
+    $container = jQuery('#hero-vid-holder');
+    aspectRatio = 9 / 16;
+    minHeight = $container.parent().height();
+    windowWidth = jQuery(window).width();
+    containerHeight = aspectRatio * windowWidth;
+
+    if (containerHeight < minHeight) {
+        // Center the vid
+        marginLeft = -1 * ((minHeight - containerHeight) / 2);
+
+        // Set the width
+        containerWidth = minHeight / aspectRatio;
+        containerHeight = '100%';
+    } else {
+        // Set the height
+        containerWidth = '100%';
+        marginLeft = '0px';
+    }
+
+    $container.css('height', containerHeight).css('width', containerWidth).css('margin-left', marginLeft);
+}
+
+/*
+
+For when you have to validate an email.  Works with black magic
+
+*/
+function validateEmail(email) {
+    var re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+    return re.test(email);
+}
+
+/*
+
+Video modals
+
+Simple use:
+<div data-video-url='<?= $url ?>'>Video!</div>
+
+With an image + mask
+<div class="video-with-overlay" data-video-url='<?= $url ?>'>
+	<img src="<?= $img ?>" />
+	<div>
+		<img src="<?= get_stylesheet_directory_uri() ?>/assets/images/homepage-video-mask.png" />
+		<i class="fa fa-play-circle-o" aria-hidden="true"></i>
+	</div>
+</div>
+*/
+
+function registerVideoModals() {
+    jQuery('[data-video-url]').each(function () {
+        $this = jQuery(this);
+        videoUrl = $this.attr('data-video-url');
+
+        if (/vimeo/i.test(videoUrl)) {
+            // IN
+            //  https://vimeo.com/16536655
+            // OUT
+            //  https://player.vimeo.com/video/16536655
+            videoId = /[^/]*$/.exec(videoUrl)[0];
+            videoIframeSrc = 'http://player.vimeo.com/video/' + videoId;
+            thisId = 'video-modal-' + guid();
+            iframe = jQuery("<iframe src='" + videoIframeSrc + "' frameborder='0' webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>");
+            closeButton = jQuery("<button class='close-button' data-close aria-label='Close video' type='button'>").append(jQuery('<i class="fa fa-times-circle-o" aria-hidden="true"></i>'));
+            modal = jQuery("<div class='reveal video-modal' id='" + thisId + "' data-reveal data-reset-on-close='true'>").append(closeButton).append(iframe);
+
+            jQuery('body').append(modal);
+
+            $this.attr('data-open', thisId);
+
+            var elem = new Foundation.Reveal(modal);
+            return elem;
+        }
+    });
+}
+
+function guid() {
+    function s4() {
+        return Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
+    }
+    return s4() + s4() + '-' + s4() + '-' + s4() + '-' + s4() + '-' + s4() + s4() + s4();
+}
+
+/* Makes Gravity Forms file upload look better. */
+function watchGravityFormsUpload() {
+    jQuery('input[type="file"]').parent().parent().addClass('upload');
+    jQuery('.upload label').attr('data-filename', 'Attach file').attr('data-status', 'Find file');
+    jQuery('.upload input').bind('change', function () {
+        var fpath = jQuery('input[type="file"]').val();
+        var filename = fpath.split('\\').pop();
+        console.log(filename);
+        jQuery('.upload label').attr('data-filename', filename).attr('data-status', 'Re-upload');
+        // const markup =
+        //     '<div class="upload-success-message">File upload successful.</div>'
+        // jQuery('.upload').append(markup)
+    });
+}
+//# sourceMappingURL=cbm-utils.js.map
